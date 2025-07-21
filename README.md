@@ -1,48 +1,46 @@
-# Excel NLP Query PoC
+# Excel NLP Query POC
 
-Este proyecto es una prueba de concepto para responder preguntas en lenguaje natural sobre datos de un archivo Excel usando Python, Pandas y un modelo LLM (Groq).
+Este proyecto es una prueba de concepto para consultar archivos Excel mediante lenguaje natural usando LLMs, con gestión segura de archivos y frontend elegante.
 
-## Estructura
-- `src/`: Código principal
-  - `main.py`: Script principal. Recibe la ruta al archivo Excel y la pregunta.
-  - `utils.py`: Funciones para cargar el Excel, construir el prompt y ejecutar el código generado.
-  - `groq_client.py`: Cliente para interactuar con el modelo LLM de Groq.
-  - `config.py`: Configuración (si aplica).
-- `prompts/`: Plantillas de prompt para el LLM
-  - `base_prompt.txt`: Prompt base para generar código Python a partir de la pregunta y el esquema del DataFrame.
-- `data/`: Archivos de datos de ejemplo
-  - `ejemplo.xlsx`: Archivo Excel de muestra.
-- `requirements.txt`: Dependencias del proyecto.
+## Características
+- Subida, renombrado y borrado de archivos Excel/CSV.
+- Consulta por chat con historial por archivo.
+- Prompt personalizado por archivo.
+- Backend FastAPI + pandas + RestrictedPython (sandbox seguro).
+- Frontend vanilla JS + CSS adaptativo.
+- Cabeceras normalizadas (sin tildes, minúsculas, sin espacios).
+- Eliminación completa de archivos (original, procesado, metadata).
+- `.gitignore` robusto para evitar subir datos y secretos.
+
+## Instalación
+```bash
+# Clona el repositorio
+https://github.com/Husky34Dev/excel_nlp_query_poc.git
+cd excel_nlp_query_poc
+
+# Crea y activa entorno virtual
+python -m venv .venv
+.venv\Scripts\activate
+
+# Instala dependencias
+pip install -r requirements.txt
+
+# Configura tu archivo .env si usas claves o endpoints privados
+```
 
 ## Uso
-1. Instala las dependencias:
-   ```bash
-   pip install -r requirements.txt
-   ```
-2. Configura la variable de entorno `GROQ_API_KEY`.
-3. Ejecuta el script principal:
-   ```bash
-   python -m src.main data/ejemplo.xlsx "¿Cuál es la región con más ingresos?"
-   ```
+```bash
+# Ejecuta el backend
+uvicorn app.main:app --reload
 
-## Funcionamiento
-- El script carga el archivo Excel y extrae el esquema del DataFrame.
-- Construye un prompt para el LLM, que genera un bloque de código Python para responder la pregunta.
-- El código generado se ejecuta de forma segura sobre el DataFrame y se muestra el resultado.
-
-## Seguridad
-- El código generado se ejecuta en un entorno restringido, sin acceso a funciones peligrosas.
-- Se recomienda revisar y sandboxear el código antes de usar en producción.
-
-## Ejemplo de prompt
-```
-Eres un experto en análisis de datos con Python y Pandas.
-...
-Usa `result = ...` como línea final para que pueda capturarse automáticamente.
+# Accede a la app en tu navegador
+http://localhost:8000
 ```
 
-## Estado
-- Fase 1 completada: flujo funcional, logging básico, ejecución segura, prompt ajustado.
+## Notas
+- No subas archivos de datos reales al repositorio.
+- Las cabeceras de los archivos se normalizan automáticamente.
+- El sistema es "a prueba de bombas" para encoding y formatos.
 
----
-GitHub Copilot
+## Autor
+Husky34Dev
