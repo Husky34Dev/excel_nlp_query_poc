@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Asistente de Análisis de Datos</title>
+    <link rel="stylesheet" href="style.css" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+</head>
+<body>
+
+    <div class="app-layout">
+        <aside class="sidebar">
+            <div class="sidebar-header">
+                <h2>Mis Archivos</h2>
+                <button id="upload-new-btn" class="button-primary">
+                    <i class="fa-solid fa-plus"></i> Nuevo Archivo
+                </button>
+            </div>
+            <ul id="file-list" class="file-list"></ul>
+        </aside>
+
+        <main class="main-content">
+            <div id="welcome-view">
+                <h1>Bienvenido al Asistente de Análisis 🤖</h1>
+                <p>Selecciona un archivo de la lista o sube uno nuevo para comenzar a hacer preguntas.</p>
+            </div>
+
+            <div id="chat-view" class="hidden">
+                <div class="chat-header">
+                    <h2 id="current-file-name"></h2>
+                </div>
+                <div id="chat-container">
+                    <div class="response-container"></div>
+                    <div class="user-input-area">
+                        <textarea id="user-question" placeholder="Ej: ¿Cuál es el total de ventas para 2023?..."></textarea>
+                        <button id="send-question" title="Enviar Pregunta">
+                            <i class="fa-solid fa-paper-plane"></i>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- Modal de carga -->
+    <div id="upload-modal" class="modal-overlay hidden">
+        <div class="modal-content">
+            <h2>Subir y Procesar Archivo</h2>
+            <div id="file-to-upload" class="file-info"></div>
+            <label for="file-name-input">Asignar nombre:</label>
+            <input type="text" id="file-name-input" placeholder="Nombre para identificar el archivo...">
+            
+            <div id="upload-progress-container" class="progress-view">
+                <progress id="upload-progress" value="0" max="100"></progress>
+                <span id="upload-progress-label">0%</span>
+            </div>
+
+            <div id="processing-view" class="progress-view hidden">
+                <div class="spinner"></div>
+                <span>Procesando archivo, esto puede tardar...</span>
+            </div>
+            
+            <div class="modal-actions">
+                <button id="cancel-upload" class="button-secondary">Cancelar</button>
+                <button id="start-upload" class="button-primary">Subir y Procesar</button>
+            </div>
+        </div>
+    </div>
+
+    <input type="file" id="file-input" hidden />
+    <script src="app.js"></script>
+</body>
+</html>

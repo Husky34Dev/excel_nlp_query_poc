@@ -1,0 +1,25 @@
+# Entorno virtual y dependencias
+.venv/
+__pycache__/
+*.pyc
+
+# Configuración y secretos
+.env
+
+# Archivos de datos y procesados
+/data/
+/data_files/
+/uploads/
+/processed/
+/metadata/
+
+# Archivos temporales
+*.log
+*.tmp
+
+# Archivos de VSCode
+.vscode/
+
+# Otros
+.DS_Store
+Thumbs.db

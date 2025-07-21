@@ -1,0 +1,8 @@
+python-dotenv
+groq
+pandas
+openpyxl
+fastapi
+uvicorn
+python-multipart
+RestrictedPython
