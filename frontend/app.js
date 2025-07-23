@@ -1,6 +1,9 @@
+// Drag & Drop para subir archivos
+
 document.addEventListener("DOMContentLoaded", () => {
     // --- Elementos del DOM ---
     const fileInput = document.getElementById("file-input");
+    const dropzone = document.getElementById('upload-dropzone');
     const uploadNewBtn = document.getElementById("upload-new-btn");
     const fileList = document.getElementById("file-list");
     const welcomeView = document.getElementById("welcome-view");
@@ -9,6 +12,8 @@ document.addEventListener("DOMContentLoaded", () => {
     const responseContainer = document.querySelector(".response-container");
     const userQuestion = document.getElementById("user-question");
     const sendButton = document.getElementById("send-question");
+
+
 
     // --- Elementos del Modal de Subida ---
     const uploadModal = document.getElementById("upload-modal");
@@ -39,11 +44,104 @@ document.addEventListener("DOMContentLoaded", () => {
         const avatar = `<div class="avatar"><i class="fa-solid ${sender === 'user' ? 'fa-user' : 'fa-robot'}"></i></div>`;
         const contentDiv = document.createElement('div');
         contentDiv.classList.add('message-content');
-        
+
         if (sender === 'assistant') {
-            const pre = document.createElement('pre');
-            pre.textContent = text;
-            contentDiv.appendChild(pre);
+            // Mostrar mensaje amigable si la respuesta es null (como string o valor JSON)
+            let rendered = false;
+            if (text === 'null' || text === null) {
+                const p = document.createElement('p');
+                p.textContent = 'Sin resultados para esta consulta.';
+                contentDiv.appendChild(p);
+                rendered = true;
+            } else {
+                try {
+                    const parsed = JSON.parse(text);
+                    if (parsed === null) {
+                        const p = document.createElement('p');
+                        p.textContent = 'Sin resultados para esta consulta.';
+                        contentDiv.appendChild(p);
+                        rendered = true;
+                    } else {
+                        // Renderizado recursivo universal
+                        function renderAny(val) {
+                            if (val === null) return document.createTextNode('null');
+                            if (typeof val === 'string' || typeof val === 'number' || typeof val === 'boolean') {
+                                return document.createTextNode(val);
+                            }
+                            if (Array.isArray(val)) {
+                                if (val.length === 0) return document.createTextNode('[]');
+                                // Si es array de objetos, renderiza tabla
+                                if (typeof val[0] === 'object' && val[0] !== null && !Array.isArray(val[0])) {
+                                    const table = document.createElement('table');
+                                    table.className = 'json-table';
+                                    const thead = document.createElement('thead');
+                                    const headerRow = document.createElement('tr');
+                                    Object.keys(val[0]).forEach(key => {
+                                        const th = document.createElement('th');
+                                        th.textContent = key;
+                                        headerRow.appendChild(th);
+                                    });
+                                    thead.appendChild(headerRow);
+                                    table.appendChild(thead);
+                                    const tbody = document.createElement('tbody');
+                                    val.forEach(row => {
+                                        const tr = document.createElement('tr');
+                                        Object.keys(val[0]).forEach(key => {
+                                            const td = document.createElement('td');
+                                            td.appendChild(renderAny(row[key]));
+                                            tr.appendChild(td);
+                                        });
+                                        tbody.appendChild(tr);
+                                    });
+                                    table.appendChild(tbody);
+                                    return table;
+                                } else {
+                                    // Array simple o array de arrays
+                                    const ul = document.createElement('ul');
+                                    val.forEach(item => {
+                                        const li = document.createElement('li');
+                                        li.appendChild(renderAny(item));
+                                        ul.appendChild(li);
+                                    });
+                                    return ul;
+                                }
+                            }
+                            if (typeof val === 'object') {
+                                const table = document.createElement('table');
+                                table.className = 'json-table';
+                                const thead = document.createElement('thead');
+                                const headerRow = document.createElement('tr');
+                                Object.keys(val).forEach(key => {
+                                    const th = document.createElement('th');
+                                    th.textContent = key;
+                                    headerRow.appendChild(th);
+                                });
+                                thead.appendChild(headerRow);
+                                table.appendChild(thead);
+                                const tbody = document.createElement('tbody');
+                                const tr = document.createElement('tr');
+                                Object.keys(val).forEach(key => {
+                                    const td = document.createElement('td');
+                                    td.appendChild(renderAny(val[key]));
+                                    tr.appendChild(td);
+                                });
+                                tbody.appendChild(tr);
+                                table.appendChild(tbody);
+                                return table;
+                            }
+                            // Fallback
+                            return document.createTextNode(String(val));
+                        }
+                        contentDiv.appendChild(renderAny(parsed));
+                        rendered = true;
+                    }
+                } catch (e) {}
+            }
+            if (!rendered) {
+                const pre = document.createElement('pre');
+                pre.textContent = text;
+                contentDiv.appendChild(pre);
+            }
         } else {
             const p = document.createElement('p');
             p.textContent = text;
@@ -55,6 +153,31 @@ document.addEventListener("DOMContentLoaded", () => {
         responseContainer.appendChild(messageDiv);
         scrollToBottom();
     };
+// --- Estilos para tablas generadas desde JSON ---
+const style = document.createElement('style');
+style.textContent = `
+.json-table {
+  border-collapse: collapse;
+  width: 100%;
+  margin: 0.5em 0;
+  font-size: 1em;
+  background: #fff;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.04);
+}
+.json-table th, .json-table td {
+  border: 1px solid #e0e0e0;
+  padding: 0.5em 0.8em;
+  text-align: left;
+}
+.json-table th {
+  background: #f5f5f5;
+  font-weight: bold;
+}
+.json-table tr:nth-child(even) td {
+  background: #fafbfc;
+}
+`;
+document.head.appendChild(style);
 
     const renderChatHistory = (fileId) => {
         responseContainer.innerHTML = '';
@@ -111,6 +234,32 @@ document.addEventListener("DOMContentLoaded", () => {
         }
     };
     
+    // --- Drag & Drop para subir archivos ---
+    if (dropzone && fileInput) {
+        dropzone.addEventListener('click', () => {
+            fileInput.click();
+        });
+
+        dropzone.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            dropzone.classList.add('dragover');
+        });
+
+        dropzone.addEventListener('dragleave', (e) => {
+            e.preventDefault();
+            dropzone.classList.remove('dragover');
+        });
+
+        dropzone.addEventListener('drop', (e) => {
+            e.preventDefault();
+            dropzone.classList.remove('dragover');
+            if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+                fileInput.files = e.dataTransfer.files;
+                // Disparar el evento de cambio para procesar el archivo
+                fileInput.dispatchEvent(new Event('change'));
+            }
+        });
+    }
     // --- Lógica del Modal de Subida (sin cambios) ---
     const handleFileSelect = (file) => {
         if (!file) return;
@@ -195,7 +344,6 @@ document.addEventListener("DOMContentLoaded", () => {
 
 
     // --- Event Listeners ---
-    uploadNewBtn.addEventListener("click", () => fileInput.click());
     fileInput.addEventListener("change", () => handleFileSelect(fileInput.files[0]));
     startUploadBtn.addEventListener("click", handleFileUpload);
     cancelUploadBtn.addEventListener("click", () => {
@@ -313,12 +461,24 @@ document.addEventListener("DOMContentLoaded", () => {
                 body: JSON.stringify({ file_id: currentFileId, question: question }),
             });
             const data = await res.json();
-            const responseText = data.result ? JSON.stringify(data.result, null, 2) : `❌ Error: ${data.error}`;
+            let responseText;
+            const isTechnicalError = (val) => {
+                if (!val) return false;
+                if (typeof val === 'string') {
+                    return val.startsWith('❌') || val.toLowerCase().includes('runtime error') || val.toLowerCase().includes('error de ejecución');
+                }
+                return false;
+            };
+            if (data.result && !isTechnicalError(data.result)) {
+                responseText = JSON.stringify(data.result, null, 2);
+            } else {
+                responseText = "Lo siento, parece que algo salió mal al procesar tu consulta.";
+            }
             chatHistories[currentFileId].push({ role: 'assistant', text: responseText });
             responseContainer.removeChild(responseContainer.lastChild); // Quita "Procesando..."
             addMessage('assistant', responseText);
         } catch (err) {
-            const errorText = "❌ Error de conexión al realizar la consulta.";
+            const errorText = "Lo siento, parece que algo salió mal al procesar tu consulta.";
             chatHistories[currentFileId].push({ role: 'assistant', text: errorText });
             responseContainer.removeChild(responseContainer.lastChild);
             addMessage('assistant', errorText);

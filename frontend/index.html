@@ -13,9 +13,10 @@
         <aside class="sidebar">
             <div class="sidebar-header">
                 <h2>Mis Archivos</h2>
-                <button id="upload-new-btn" class="button-primary">
-                    <i class="fa-solid fa-plus"></i> Nuevo Archivo
-                </button>
+                <div id="upload-dropzone" class="upload-dropzone">
+                    <i class="fa-solid fa-plus"></i> Nuevo Archivo o arrastra aquí
+                    <input type="file" id="file-input" hidden />
+                </div>
             </div>
             <ul id="file-list" class="file-list"></ul>
         </aside>
@@ -68,7 +69,7 @@
         </div>
     </div>
 
-    <input type="file" id="file-input" hidden />
+    <!-- input moved inside dropzone -->
     <script src="app.js"></script>
 </body>
 </html>

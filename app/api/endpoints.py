@@ -16,6 +16,8 @@ fs = FileStorage(base_dir="data_files")
 
 from fastapi import Form
 
+# Endpoint para subir archivos
+
 @router.post("/upload")
 async def upload_file(file: UploadFile = File(...), name: str = Form(None)):
     # Crear archivo temporal
@@ -55,7 +57,7 @@ async def query_llm(data: QueryRequest):
 
         result = execute_code(df, code)
 
-        # Serialización robusta para evitar errores con numpy/int64/float64
+        # Serialización numpy/int64/float64
         import numpy as np
         def to_native(val):
             if isinstance(val, np.generic):
@@ -99,7 +101,6 @@ async def list_files():
             })
     return files
 
-# Endpoint para renombrar archivo
 
 # Endpoint para borrar archivo
 class DeleteRequest(BaseModel):
@@ -116,10 +117,14 @@ async def delete_file(data: DeleteRequest):
     except Exception as e:
         return JSONResponse(status_code=400, content={"error": str(e)})
 
+
+# Endpoint para renombrar archivo
+
 class RenameRequest(BaseModel):
     file_id: str
     name: str
     prompt: str = None # type: ignore
+
 
 @router.post("/rename_file")
 async def rename_file(data: RenameRequest):

@@ -1,3 +1,25 @@
+/* Drag & Drop zona de subida de archivos */
+.upload-dropzone {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  background: #f4f4f4;
+  border: 2px dashed #bbb;
+  border-radius: 8px;
+  padding: 16px;
+  margin-bottom: 16px;
+  cursor: pointer;
+  transition: background 0.2s, border-color 0.2s;
+}
+.upload-dropzone.dragover {
+  background: #e0eaff;
+  border-color: #0078d4;
+}
+.upload-dropzone i {
+  font-size: 1.2em;
+  color: #0078d4;
+}
 #edit-file-modal .modal-content table {
   display: block;
   max-height: 220px;
@@ -6,7 +28,6 @@
 }
 #edit-file-modal .table-container {
   max-height: 220px;
-  overflow-y: auto;
   margin-bottom: 1rem;
 }
 #edit-file-modal .table-container table {
