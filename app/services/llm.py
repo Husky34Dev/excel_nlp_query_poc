@@ -14,5 +14,6 @@ class GroqLLM:
                 {"role": "user", "content": user}
             ],
             temperature=0,
+            seed=42,
         )
         return response.choices[0].message.content.strip() # type: ignore

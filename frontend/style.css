@@ -1,3 +1,46 @@
+/* --- Tabla de preview en modal de subida --- */
+.preview-table {
+  border-collapse: collapse;
+  width: 100%;
+  margin: 0.5em 0 1em 0;
+  font-size: 0.97em;
+  background: #fff;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.04);
+  border-radius: 8px;
+  overflow: hidden;
+}
+.preview-table th, .preview-table td {
+  border: 1px solid #e0e0e0;
+  padding: 0.45em 0.8em;
+  text-align: left;
+}
+.preview-table th {
+  background: #f5f7fa;
+  font-weight: 600;
+  position: sticky;
+  top: 0;
+  z-index: 1;
+}
+.preview-table tr:nth-child(even) td {
+  background: #fafbfc;
+}
+.preview-table tr:hover td {
+  background: #eaf3ff;
+}
+.preview-table th.type-header {
+  font-weight: 400;
+  font-size: 0.95em;
+  color: #4a90e2;
+  background: #f0f6ff;
+}
+.preview-table td {
+  font-family: 'Inter', monospace;
+  font-size: 0.97em;
+}
+.preview-table td .null-cell {
+  color: #bbb;
+  font-style: italic;
+}
 /* Drag & Drop zona de subida de archivos */
 .upload-dropzone {
   display: flex;
@@ -26,9 +69,14 @@
   overflow-y: auto;
   margin-bottom: 1rem;
 }
-#edit-file-modal .table-container {
+#edit-file-modal .table-container, #file-preview-container {
   max-height: 220px;
   margin-bottom: 1rem;
+  overflow-x: auto;
+  width: 100%;
+}
+.preview-table {
+  min-width: 900px;
 }
 #edit-file-modal .table-container table {
   width: 100%;
@@ -57,8 +105,23 @@
 #edit-file-modal .modal-content {
   background: var(--main-bg);
   padding: 2rem; border-radius: 12px;
-  width: 90%; max-width: 420px;
+  width: 96vw; max-width: 1200px;
+  min-width: 400px;
   box-shadow: 0 10px 25px rgba(0,0,0,0.12);
+}
+
+#upload-modal .modal-content {
+  background: var(--main-bg);
+  padding: 2rem; border-radius: 12px;
+  width: 96vw; max-width: 1200px;
+  min-width: 400px;
+  box-shadow: 0 10px 25px rgba(0,0,0,0.12);
+}
+
+#upload-modal .progress-view {
+  max-width: 420px;
+  margin-left: auto;
+  margin-right: auto;
 }
 #edit-file-modal h3 {
   margin-top: 0; margin-bottom: 1rem;

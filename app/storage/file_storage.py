@@ -7,25 +7,106 @@ import json
 import hashlib
 
 class FileStorage:
+    def process_and_save(self, df: pd.DataFrame, columns_cfg: list, base_file_id: str = None, name: str = None) -> dict: # type: ignore
+        """
+        Aplica eliminación, renombrado, cambio de tipo y normalización de columnas según columns_cfg.
+        Guarda el archivo procesado y los metadatos. Devuelve file_id, metadatos, preview y errores.
+        columns_cfg: lista de dicts con keys: name, new_name, dtype, enabled
+        """
+        import unicodedata
+        import numpy as np
+        import uuid
+        # 1. Filtrar columnas habilitadas
+        enabled_cols = [c for c in columns_cfg if c.get('enabled', True)]
+        col_map = {c['name']: c.get('new_name') or c['name'] for c in enabled_cols}
+        dtype_map = {c['name']: c['dtype'] for c in enabled_cols}
+        # 2. Subset y renombrado
+        df_proc = df[[c['name'] for c in enabled_cols]].copy()
+        df_proc.rename(columns=col_map, inplace=True)
+        # 3. Normalizar nombres
+        def normalize_col(col):
+            col = str(col)
+            col = unicodedata.normalize('NFKD', col).encode('ASCII', 'ignore').decode('ASCII')
+            col = col.lower().replace(' ', '_')
+            return col
+        df_proc.columns = [normalize_col(c) for c in df_proc.columns]
+        # 4. Cambiar tipos y recolectar errores
+        errors = []
+        for col, dtype in zip(df_proc.columns, [dtype_map[c['name']] for c in enabled_cols]):
+            try:
+                if dtype == 'int':
+                    df_proc[col] = pd.to_numeric(df_proc[col], errors='raise').astype('Int64')
+                elif dtype == 'float':
+                    df_proc[col] = pd.to_numeric(df_proc[col], errors='raise').astype('float64')
+                elif dtype == 'str':
+                    df_proc[col] = df_proc[col].astype(str)
+                elif dtype == 'bool':
+                    df_proc[col] = df_proc[col].astype('boolean')
+                elif dtype == 'datetime':
+                    df_proc[col] = pd.to_datetime(df_proc[col], errors='raise')
+                elif dtype == 'object':
+                    pass  # no conversion
+                else:
+                    raise ValueError(f"Tipo no soportado: {dtype}")
+            except Exception as e:
+                errors.append({"column": col, "error": str(e)})
+        # 5. Si hay errores, no guardar, solo devolver preview y errores
+        preview = df_proc.head(5).replace({np.nan: None, np.inf: None, -np.inf: None}).to_dict(orient="records")
+        if errors:
+            return {
+                "success": False,
+                "file_id": None,
+                "columns": [{"name": c, "dtype": str(df_proc[c].dtype)} for c in df_proc.columns],
+                "preview": preview,
+                "errors": errors
+            }
+        # 6. Guardar procesado y metadatos
+        file_id = base_file_id or uuid.uuid4().hex
+        dest_parquet = self.processed_dir / f"{file_id}.parquet"
+        df_proc.to_parquet(dest_parquet, index=False)
+        columns_utf8 = [str(col) for col in df_proc.columns]
+        dtypes_utf8 = {str(col): str(df_proc.dtypes[col]) for col in df_proc.columns}
+        metadata = {
+            "columns": columns_utf8,
+            "dtypes": dtypes_utf8,
+            "n_rows": len(df_proc),
+            "source_ext": ".parquet",
+        }
+        if name:
+            metadata["name"] = name
+        dest_json = self.metadata_dir / f"{file_id}.json"
+        with open(dest_json, "w", encoding="utf-8") as f:
+            json.dump(metadata, f, indent=2, ensure_ascii=False)
+        return {
+            "success": True,
+            "file_id": file_id,
+            "columns": [{"name": c, "dtype": str(df_proc[c].dtype)} for c in df_proc.columns],
+            "preview": preview,
+            "errors": []
+        }
     def delete_file(self, file_id: str, ext: str = None) -> None: # type: ignore
         """
-        Elimina el archivo original (uploads), el procesado (processed) y el metadata (metadata) asociados al file_id.
+        Elimina el archivo original (uploads), el procesado (processed: .pkl y .parquet) y el metadata (metadata) asociados al file_id.
         Si ext no se proporciona, intenta borrar .xlsx, .xls y .csv.
         """
         # Borrar metadata
         meta_path = self.metadata_dir / f"{file_id}.json"
         if meta_path.exists():
             meta_path.unlink()
-        # Borrar procesado
+        # Borrar procesados (.pkl y .parquet)
         pkl_path = self.processed_dir / f"{file_id}.pkl"
         if pkl_path.exists():
             pkl_path.unlink()
+        parquet_path = self.processed_dir / f"{file_id}.parquet"
+        if parquet_path.exists():
+            parquet_path.unlink()
         # Borrar original
         exts = [ext] if ext else [".xlsx", ".xls", ".csv"]
         for e in exts:
             orig_path = self.upload_dir / f"{file_id}{e}"
             if orig_path.exists():
                 orig_path.unlink()
+    # Si se implementa un método rename_file, también debe renombrar .parquet además de .pkl y metadatos.
     def __init__(self, base_dir="data_files"):
         self.base_dir = Path(base_dir)
         self.upload_dir = self.base_dir / "uploads"
@@ -38,7 +119,7 @@ class FileStorage:
     def generate_file_id(self, filename: str) -> str:
         return hashlib.md5(filename.encode()).hexdigest()
 
-    def save_file(self, file_path: str | Path) -> str:
+    def save_file(self, file_path: str | Path, name: str = None) -> str: # type: ignore
         import unicodedata
         def normalize_col(col):
             col = str(col)
@@ -91,6 +172,8 @@ class FileStorage:
             "n_rows": len(df),
             "source_ext": ext,
         }
+        if name:
+            metadata["name"] = name
         dest_json = self.metadata_dir / f"{file_id}.json"
         with open(dest_json, "w", encoding="utf-8") as f:
             json.dump(metadata, f, indent=2, ensure_ascii=False)

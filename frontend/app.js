@@ -156,7 +156,7 @@ document.addEventListener("DOMContentLoaded", () => {
 // --- Estilos para tablas generadas desde JSON ---
 const style = document.createElement('style');
 style.textContent = `
-.json-table {
+.json-table, .preview-table {
   border-collapse: collapse;
   width: 100%;
   margin: 0.5em 0;
@@ -164,17 +164,62 @@ style.textContent = `
   background: #fff;
   box-shadow: 0 2px 8px rgba(0,0,0,0.04);
 }
-.json-table th, .json-table td {
+.json-table th, .json-table td, .preview-table th, .preview-table td {
   border: 1px solid #e0e0e0;
   padding: 0.5em 0.8em;
   text-align: left;
 }
-.json-table th {
+.json-table th, .preview-table th {
   background: #f5f5f5;
   font-weight: bold;
 }
-.json-table tr:nth-child(even) td {
+.json-table tr:nth-child(even) td, .preview-table tr:nth-child(even) td {
   background: #fafbfc;
+}
+.wide-preview-table {
+  min-width: 700px;
+  table-layout: auto;
+}
+.col-name-input {
+  min-width: 120px;
+  max-width: 98%;
+  font-size: 1em;
+  border-radius: 4px;
+  border: 1px solid #bbb;
+  padding: 2px 6px;
+  background: #f9f9f9;
+}
+.col-type-select {
+  min-width: 90px;
+  font-size: 1em;
+  border-radius: 4px;
+  border: 1px solid #bbb;
+  background: #f9f9f9;
+}
+.col-enabled-label {
+  font-size: 1em;
+  margin-top: 2px;
+  margin-bottom: 0;
+  padding: 2px 0;
+  border-radius: 3px;
+  background: none;
+}
+.col-enabled-checkbox {
+  accent-color: #b00;
+  width: 18px;
+  height: 18px;
+  margin-right: 6px;
+  vertical-align: middle;
+}
+#disable-warning {
+  color: #b00;
+  font-weight: bold;
+  background: #fff3cd;
+  border: 1px solid #ffeeba;
+  padding: 0.5em 1em;
+  border-radius: 4px;
+  margin-bottom: 0.5em;
+  display: none;
 }
 `;
 document.head.appendChild(style);
@@ -261,11 +306,14 @@ document.head.appendChild(style);
         });
     }
     // --- Lógica del Modal de Subida (sin cambios) ---
-    const handleFileSelect = (file) => {
+    const handleFileSelect = async (file) => {
         if (!file) return;
         fileToUpload = file;
         fileNameInput.value = file.name.split('.').slice(0, -1).join('.');
         fileToUploadDiv.textContent = `Archivo: ${file.name} (${(file.size / 1024 / 1024).toFixed(2)} MB)`;
+        // Mostrar spinner de preview
+        const previewContainer = document.getElementById("file-preview-container");
+        previewContainer.innerHTML = '<div style="text-align:center;padding:1em;">Cargando preview...</div>';
         processingView.classList.add("hidden");
         uploadProgressContainer.classList.remove("hidden");
         progressBar.value = 0;
@@ -273,6 +321,66 @@ document.head.appendChild(style);
         startUploadBtn.disabled = false;
         cancelUploadBtn.disabled = false;
         uploadModal.classList.remove("hidden");
+
+        // Llamar a /preview_file
+        try {
+            const formData = new FormData();
+            formData.append("file", file);
+            const res = await fetch("/preview_file", { method: "POST", body: formData });
+            const data = await res.json();
+            if (data.error) {
+                previewContainer.innerHTML = `<div style='color:#b00;'>Error: ${data.error}</div>`;
+                return;
+            }
+        // Renderizar tabla editable: nombres, tipos, habilitar/deshabilitar
+        const allowedTypes = ["int", "float", "str", "bool", "datetime", "object"];
+        let html = `<div style='margin-bottom:0.5em;'><b>Filas totales:</b> ${data.n_rows ?? 'N/A'}</div>`;
+        html += `<div id='disable-warning' style='display:none;color:#b00;font-weight:bold;margin-bottom:0.5em;background:#fff3cd;border:1px solid #ffeeba;padding:0.5em 1em;border-radius:4px;'>⚠️ Cuidado: deshabilitar columnas en el procesamiento inicial eliminará esa columna <u>permanentemente</u> del archivo procesado.</div>`;
+        html += `<table class='preview-table'><thead><tr>`;
+        data.columns.forEach((col, idx) => {
+            html += `<th>
+                <input type='text' class='col-name-input' data-idx='${idx}' value='${col}' style='width:120px;'>
+                <br>
+                <select class='col-type-select' data-idx='${idx}' style='margin-top:2px;'>`;
+            allowedTypes.forEach(t => {
+                const sel = (data.dtypes[col].toLowerCase().includes(t)) ? 'selected' : '';
+                html += `<option value='${t}' ${sel}>${t}</option>`;
+            });
+            html += `</select><br>
+                <label class='col-enabled-label' style='font-size:0.95em;display:inline-flex;align-items:center;margin-top:4px;'>
+                    <input type='checkbox' class='col-enabled-checkbox' data-idx='${idx}' checked style='accent-color:#b00;width:18px;height:18px;margin-right:6px;'>
+                    <span>Incluir</span>
+                </label>
+            </th>`;
+        });
+        html += `</tr></thead><tbody>`;
+            (data.preview || []).forEach(row => {
+                html += `<tr>`;
+                data.columns.forEach(col => {
+                    let val = row[col];
+                    if (val === null || val === undefined) val = '<span class="null-cell">null</span>';
+                    html += `<td>${val}</td>`;
+                });
+                html += `</tr>`;
+            });
+            html += `</tbody></table>`;
+        previewContainer.innerHTML = html;
+        // Guardar info para el submit
+        previewContainer.dataset.columns = JSON.stringify(data.columns);
+        previewContainer.dataset.dtypes = JSON.stringify(data.dtypes);
+
+        // Lógica de advertencia visual al deshabilitar columnas
+        const warningDiv = document.getElementById('disable-warning');
+        const checkboxes = previewContainer.querySelectorAll('.col-enabled-checkbox');
+        checkboxes.forEach(cb => {
+            cb.addEventListener('change', () => {
+                const anyDisabled = Array.from(checkboxes).some(c => !c.checked);
+                warningDiv.style.display = anyDisabled ? 'block' : 'none';
+            });
+        });
+        } catch (e) {
+            previewContainer.innerHTML = `<div style='color:#b00;'>Error al obtener preview</div>`;
+        }
     };
 
     const handleFileUpload = () => {
@@ -282,30 +390,61 @@ document.head.appendChild(style);
             alert("Por favor, asigna un nombre al archivo.");
             return;
         }
+        // Construir configuración de columnas desde la tabla editable
+        const previewContainer = document.getElementById("file-preview-container");
+        const columns = JSON.parse(previewContainer.dataset.columns || "[]");
+        const dtypes = JSON.parse(previewContainer.dataset.dtypes || "{}")
+        const colConfigs = columns.map((col, idx) => {
+            const nameInput = previewContainer.querySelector(`.col-name-input[data-idx='${idx}']`);
+            const typeSelect = previewContainer.querySelector(`.col-type-select[data-idx='${idx}']`);
+            const enabledCheckbox = previewContainer.querySelector(`.col-enabled-checkbox[data-idx='${idx}']`);
+            return {
+                name: col,
+                new_name: nameInput.value.trim() || col,
+                dtype: typeSelect.value,
+                enabled: enabledCheckbox.checked
+            };
+        });
         startUploadBtn.disabled = true;
         cancelUploadBtn.disabled = true;
         const formData = new FormData();
         formData.append("file", fileToUpload);
-        formData.append("name", newName);
-        xhr = new XMLHttpRequest();
-        xhr.open("POST", "/upload", true);
-        xhr.upload.addEventListener("progress", e => { /* ... */ });
-        xhr.onload = () => {
-            if (xhr.status === 200) {
-                const res = JSON.parse(xhr.responseText);
-                loadFiles().then(() => {
-                    selectFileUI(res.file_id, (res.metadata && res.metadata.name) || newName);
-                });
-                resetModal();
-            } else { /* ... */ }
-        };
-        xhr.onerror = () => { /* ... */ };
-        xhr.onabort = () => { /* ... */ };
-        xhr.upload.onloadstart = () => {
-            uploadProgressContainer.classList.add("hidden");
-            processingView.classList.remove("hidden");
-        };
-        xhr.send(formData);
+        formData.append("columns", JSON.stringify(colConfigs));
+        formData.append("name", newName); // <-- Enviar el nombre al backend
+        // Enviar a /api/process_file
+        fetch("/process_file", {
+            method: "POST",
+            body: formData
+        }).then(async res => {
+            if (res.ok) {
+                const data = await res.json();
+                if (data.success) {
+                    // Actualizar nombre en la lista y selección
+                    loadFiles().then(() => {
+                        selectFileUI(data.file_id, newName);
+                        // Actualizar nombre en la lista manualmente si ya está
+                        const li = document.querySelector(`li[data-file-id='${data.file_id}']`);
+                        if (li) {
+                            li.querySelector('.file-name').textContent = newName;
+                            li.dataset.fileName = newName;
+                        }
+                    });
+                    resetModal();
+                } else {
+                    alert("Errores en el procesamiento: " + JSON.stringify(data.errors));
+                    startUploadBtn.disabled = false;
+                    cancelUploadBtn.disabled = false;
+                }
+            } else {
+                alert("Error al procesar el archivo");
+                startUploadBtn.disabled = false;
+                cancelUploadBtn.disabled = false;
+            }
+        }).catch(() => {
+            alert("Error de red al procesar el archivo");
+            startUploadBtn.disabled = false;
+            cancelUploadBtn.disabled = false;
+        });
     };
 
     const resetModal = () => {
