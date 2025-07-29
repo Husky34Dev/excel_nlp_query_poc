@@ -214,6 +214,48 @@ class ProcessColumnConfig(BaseModel):
     dtype: str  # tipo destino
     enabled: Optional[bool] = True  # si la columna se incluye o no
 
+# Modelo para crear subconjunto hijo
+class CreateSubsetRequest(BaseModel):
+    parent_file_id: str
+    columns: list[ProcessColumnConfig]
+    name: Optional[str] = None
+
+# Endpoint para crear subconjunto hijo
+@router.post("/create_subset")
+async def create_subset(data: CreateSubsetRequest):
+    """
+    Crea un subconjunto hijo a partir de un archivo padre procesado.
+    Valida reglas de negocio: no todas las columnas, no duplicados, normalización de nombres.
+    """
+    fs = FileStorage(base_dir="data_files")
+    # Validar que el padre existe
+    try:
+        df_parent = fs.load_dataframe(data.parent_file_id)
+        meta_parent = fs.load_metadata(data.parent_file_id)
+    except Exception as e:
+        return JSONResponse(status_code=400, content={"error": f"Archivo padre no encontrado: {e}"})
+
+    # Validar columnas seleccionadas
+    selected = [c for c in data.columns if c.enabled]
+    if not selected:
+        return JSONResponse(status_code=400, content={"error": "Debes seleccionar al menos una columna."})
+    if len(selected) == len(meta_parent["columns"]):
+        return JSONResponse(status_code=400, content={"error": "No se puede crear un hijo con todas las columnas del padre."})
+
+    # TODO: Validar duplicados (subconjunto idéntico ya existe)
+    # TODO: Normalizar nombres de columnas
+
+    # Crear y guardar subconjunto usando FileStorage (función a implementar)
+    try:
+        result = fs.create_subset(
+            parent_file_id=data.parent_file_id,
+            columns_cfg=[c.dict() for c in selected],
+            name=data.name # type: ignore
+        )
+        return result
+    except Exception as e:
+        return JSONResponse(status_code=400, content={"error": str(e)})
+
 @router.post("/process_file")
 async def process_file(
     file: UploadFile = File(None),

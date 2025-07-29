@@ -5,17 +5,16 @@ from pathlib import Path
 import pandas as pd
 import json
 import hashlib
-
+import unicodedata
+import numpy as np
 class FileStorage:
-    def process_and_save(self, df: pd.DataFrame, columns_cfg: list, base_file_id: str = None, name: str = None) -> dict: # type: ignore
+
+    def _process_columns(self, df: pd.DataFrame, columns_cfg: list) -> tuple:
         """
-        Aplica eliminación, renombrado, cambio de tipo y normalización de columnas según columns_cfg.
-        Guarda el archivo procesado y los metadatos. Devuelve file_id, metadatos, preview y errores.
-        columns_cfg: lista de dicts con keys: name, new_name, dtype, enabled
+        Procesa el DataFrame según columns_cfg: filtra, renombra, normaliza y cambia tipos.
+        Devuelve df_proc, preview, errors, columns, dtypes
         """
-        import unicodedata
-        import numpy as np
-        import uuid
+        
         # 1. Filtrar columnas habilitadas
         enabled_cols = [c for c in columns_cfg if c.get('enabled', True)]
         col_map = {c['name']: c.get('new_name') or c['name'] for c in enabled_cols}
@@ -45,13 +44,23 @@ class FileStorage:
                 elif dtype == 'datetime':
                     df_proc[col] = pd.to_datetime(df_proc[col], errors='raise')
                 elif dtype == 'object':
-                    pass  # no conversion
+                    pass
                 else:
                     raise ValueError(f"Tipo no soportado: {dtype}")
             except Exception as e:
                 errors.append({"column": col, "error": str(e)})
-        # 5. Si hay errores, no guardar, solo devolver preview y errores
         preview = df_proc.head(5).replace({np.nan: None, np.inf: None, -np.inf: None}).to_dict(orient="records")
+        columns_utf8 = [str(col) for col in df_proc.columns]
+        dtypes_utf8 = {str(col): str(df_proc.dtypes[col]) for col in df_proc.columns}
+        return df_proc, preview, errors, columns_utf8, dtypes_utf8
+
+    def process_and_save(self, df: pd.DataFrame, columns_cfg: list, base_file_id: str = None, name: str = None) -> dict: # type: ignore
+        """
+        Aplica eliminación, renombrado, cambio de tipo y normalización de columnas según columns_cfg.
+        Guarda el archivo procesado y los metadatos. Devuelve file_id, metadatos, preview y errores.
+        """
+        import uuid
+        df_proc, preview, errors, columns_utf8, dtypes_utf8 = self._process_columns(df, columns_cfg)
         if errors:
             return {
                 "success": False,
@@ -60,12 +69,9 @@ class FileStorage:
                 "preview": preview,
                 "errors": errors
             }
-        # 6. Guardar procesado y metadatos
         file_id = base_file_id or uuid.uuid4().hex
         dest_parquet = self.processed_dir / f"{file_id}.parquet"
         df_proc.to_parquet(dest_parquet, index=False)
-        columns_utf8 = [str(col) for col in df_proc.columns]
-        dtypes_utf8 = {str(col): str(df_proc.dtypes[col]) for col in df_proc.columns}
         metadata = {
             "columns": columns_utf8,
             "dtypes": dtypes_utf8,
@@ -182,8 +188,92 @@ class FileStorage:
         return file_id
 
     def load_dataframe(self, file_id: str) -> pd.DataFrame:
-        return pd.read_pickle(self.processed_dir / f"{file_id}.pkl")
+        pkl_path = self.processed_dir / f"{file_id}.pkl"
+        parquet_path = self.processed_dir / f"{file_id}.parquet"
+        if pkl_path.exists():
+            return pd.read_pickle(pkl_path)
+        elif parquet_path.exists():
+            return pd.read_parquet(parquet_path)
+        else:
+            raise FileNotFoundError(f"No se encontró archivo procesado para file_id: {file_id}")
 
     def load_metadata(self, file_id: str) -> dict:
         with open(self.metadata_dir / f"{file_id}.json", "r") as f:
             return json.load(f)
+
+    def create_subset(self, parent_file_id: str, columns_cfg: list, name: str = None) -> dict: # type: ignore
+        """
+        Crea y guarda un subconjunto hijo a partir de un archivo padre procesado.
+        Valida duplicados, normaliza nombres, guarda Parquet y metadatos.
+        """
+        import unicodedata
+        import numpy as np
+        import uuid
+        # 1. Cargar padre
+        df_parent = self.load_dataframe(parent_file_id)
+        meta_parent = self.load_metadata(parent_file_id)
+        # 2. Procesar columnas (reutiliza lógica)
+        df_subset, preview, errors, columns_utf8, dtypes_utf8 = self._process_columns(df_parent, columns_cfg)
+        if errors:
+            return {
+                "success": False,
+                "file_id": None,
+                "columns": [{"name": c, "dtype": str(df_subset[c].dtype)} for c in df_subset.columns],
+                "preview": preview,
+                "errors": errors
+            }
+        # 4. Validar duplicados (subconjunto idéntico ya existe)
+        # Se busca en los hijos del padre si existe uno con las mismas columnas
+        parent_meta_path = self.metadata_dir / f"{parent_file_id}.json"
+        hijos = []
+        if parent_meta_path.exists():
+            with open(parent_meta_path, "r", encoding="utf-8") as f:
+                meta = json.load(f)
+                hijos = meta.get("children", [])
+        # Usar columns_utf8 (ya normalizadas) para comparar
+        subset_cols_norm = columns_utf8
+        for hijo_id in hijos:
+            hijo_meta_path = self.metadata_dir / f"{hijo_id}.json"
+            if hijo_meta_path.exists():
+                with open(hijo_meta_path, "r", encoding="utf-8") as f:
+                    hijo_meta = json.load(f)
+                    if hijo_meta.get("columns", []) == subset_cols_norm:
+                        return {
+                            "success": False,
+                            "file_id": None,
+                            "columns": [{"name": c, "dtype": str(df_subset[c].dtype)} for c in df_subset.columns],
+                            "preview": preview,
+                            "errors": [{"error": "Ya existe un subconjunto idéntico."}]
+                        }
+        # 5. Guardar subset y metadatos
+        file_id = uuid.uuid4().hex
+        dest_parquet = self.processed_dir / f"{file_id}.parquet"
+        df_subset.to_parquet(dest_parquet, index=False)
+        columns_utf8 = [str(col) for col in df_subset.columns]
+        dtypes_utf8 = {str(col): str(df_subset.dtypes[col]) for col in df_subset.columns}
+        metadata = {
+            "columns": columns_utf8,
+            "dtypes": dtypes_utf8,
+            "n_rows": len(df_subset),
+            "source_ext": ".parquet",
+            "parent_id": parent_file_id
+        }
+        if name:
+            metadata["name"] = name
+        dest_json = self.metadata_dir / f"{file_id}.json"
+        with open(dest_json, "w", encoding="utf-8") as f:
+            json.dump(metadata, f, indent=2, ensure_ascii=False)
+        # 6. Actualizar metadatos del padre para añadir el hijo
+        if parent_meta_path.exists():
+            with open(parent_meta_path, "r", encoding="utf-8") as f:
+                meta = json.load(f)
+            meta.setdefault("children", []).append(file_id)
+            with open(parent_meta_path, "w", encoding="utf-8") as f:
+                json.dump(meta, f, indent=2, ensure_ascii=False)
+        return {
+            "success": True,
+            "file_id": file_id,
+            "columns": [{"name": c, "dtype": str(df_subset[c].dtype)} for c in df_subset.columns],
+            "preview": preview,
+            "errors": []
+        }

@@ -239,7 +239,42 @@ flowchart TD
   - Probar `/api/preview_file` con CSV/Excel reales.
   - Validar errores en conversión de tipos.
   - Verificar creación/eliminación de subconjuntos.
-  - Testear performance con archivos grandes.
 
----
+## Cambios y avances a 29 de julio de 2025
+
+### Endpoint `/api/create_subset` (backend FastAPI)
+
+### ✅ Pruebas de creación de subconjuntos hijos (backend FastAPI)
+- La lógica de backend y el endpoint `/api/create_subset` funcionan correctamente.
+- Se validan los tipos permitidos (`int`, `float`, `str`, `bool`, `datetime`, `object`).
+- Se rechazan subconjuntos duplicados y con todas las columnas del padre.
+- Se genera el archivo hijo y los metadatos correctamente, incluyendo la relación jerárquica.
+- Ejemplo exitoso: creación de `iris_subset` con columnas filtradas y tipos correctos.
+- Siguiente paso: adaptar el frontend para consumir el endpoint y construir el payload con los tipos estándar.
+  "parent_file_id": "id_del_padre",
+  "columns": [
+    {
+      "name": "col1",
+      "new_name": "col1_filtrada",
+      "dtype": "int",
+      "enabled": true
+    },
+    {
+      "name": "col2",
+      "dtype": "float",
+      "enabled": true
+    }
+    // ...
+  ],
+  "name": "nombre_subconjunto_hijo" // opcional
+}
+```
+- Reglas de negocio implementadas:
+  - No se permite crear un hijo con todas las columnas del padre.
+  - Se valida que el padre exista.
+  - Se valida que al menos una columna esté seleccionada.
+  - (Pendiente) Validar duplicados y normalización de nombres.
+- El endpoint delega la lógica de creación y guardado a `FileStorage.create_subset`.
+
+----
 
